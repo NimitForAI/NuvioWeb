@@ -103,6 +103,11 @@ export const PlayerController = {
   avplaySubtitleTracks: [],
   selectedAvPlayAudioTrackIndex: -1,
   selectedAvPlaySubtitleTrackIndex: -1,
+  // True once the user (or an honoured startup preference) has actively
+  // chosen a subtitle track / Off this playback session. Until then, an
+  // embedded TEXT track that AVPlay defaulted to on its own is NOT adopted,
+  // so Tizen starts subtitles Off like Stremio instead of auto-selecting.
+  avplaySubtitleUserEngaged: false,
   pendingAvPlayAudioTrackIndex: -1,
   desiredAvPlayAudioTrackIndex: -1,
   desiredAvPlayAudioTrackUntil: 0,
@@ -1133,17 +1138,26 @@ export const PlayerController = {
       this.selectedAvPlaySubtitleTrackIndex = -1;
     } else if (desiredSubtitleActive) {
       this.selectedAvPlaySubtitleTrackIndex = desiredSubtitleIndex;
-    } else if (Number.isFinite(resolvedSelectedTextIndex) && resolvedSelectedTextIndex >= 0) {
-      this.selectedAvPlaySubtitleTrackIndex = resolvedSelectedTextIndex;
-      this.pendingAvPlaySubtitleTrackIndex = -1;
-      this.desiredAvPlaySubtitleTrackIndex = -1;
-      this.desiredAvPlaySubtitleTrackUntil = 0;
     } else if (
       Number.isFinite(this.pendingAvPlaySubtitleTrackIndex) &&
       this.pendingAvPlaySubtitleTrackIndex >= 0
     ) {
       this.selectedAvPlaySubtitleTrackIndex = this.pendingAvPlaySubtitleTrackIndex;
-    } else if (!this.avplaySubtitleTracks.length) {
+    } else if (
+      Number.isFinite(resolvedSelectedTextIndex) &&
+      resolvedSelectedTextIndex >= 0 &&
+      this.avplaySubtitleUserEngaged
+    ) {
+      // Only reflect AVPlay's active TEXT track once the user has actually
+      // engaged subtitles this session. Before that, AVPlay's firmware-default
+      // track is ignored so playback starts Off (Stremio parity) instead of
+      // silently auto-selecting an embedded track that often shows as Unknown.
+      this.selectedAvPlaySubtitleTrackIndex = resolvedSelectedTextIndex;
+      this.pendingAvPlaySubtitleTrackIndex = -1;
+      this.desiredAvPlaySubtitleTrackIndex = -1;
+      this.desiredAvPlaySubtitleTrackUntil = 0;
+    } else if (!this.avplaySubtitleTracks.length || !this.avplaySubtitleUserEngaged) {
+      // No tracks, or the user has not engaged subtitles yet: keep Off.
       this.selectedAvPlaySubtitleTrackIndex = -1;
     }
   },
@@ -1763,6 +1777,7 @@ export const PlayerController = {
     if (!Number.isFinite(targetIndex) || targetIndex < 0) {
       this.pendingAvPlaySubtitleTrackIndex = -1;
       this.pendingAvPlaySubtitleReactivation = false;
+      this.avplaySubtitleUserEngaged = true;
       this.desiredAvPlaySubtitleTrackIndex = -1;
       this.desiredAvPlaySubtitleTrackUntil = Date.now() + 5000;
       this.clearAvPlayExternalSubtitlePath();
@@ -1789,6 +1804,7 @@ export const PlayerController = {
     }
 
     this.clearAvPlayExternalSubtitlePath();
+    this.avplaySubtitleUserEngaged = true;
     this.desiredAvPlaySubtitleTrackIndex = canonicalIndex;
     this.desiredAvPlaySubtitleTrackUntil = Date.now() + 5000;
     const state = this.getAvPlayState();
@@ -2303,6 +2319,7 @@ export const PlayerController = {
     this.desiredAvPlaySubtitleTrackIndex = -1;
     this.desiredAvPlaySubtitleTrackUntil = 0;
     this.avplaySubtitleSelectionToken = Number(this.avplaySubtitleSelectionToken || 0) + 1;
+    this.avplaySubtitleUserEngaged = false;
     this.avplaySubtitlesSilent = false;
     this.avplayNativeSubtitleRendering = false;
     this.avplaySubtitleRenderMode = "native";
