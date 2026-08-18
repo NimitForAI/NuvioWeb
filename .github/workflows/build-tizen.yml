@@ -1,24 +1,16 @@
 name: Build Tizen WGT
 
-# Builds the Samsung Tizen .wgt on GitHub's runners (no Tizen Studio needed).
-# scripts/package-tizen.mjs packages with Node + JSZip and produces an
-# UNSIGNED .wgt. That is expected: install it with the Nuvio WebTV Installer,
-# which re-signs the package per-TV using your Samsung DUID.
-
 on:
-  # Run manually from the Actions tab.
   workflow_dispatch:
-  # Build on every push to your fix branch (and main).
   push:
     branches:
       - main
       - "fix/**"
-  # Also build + attach the .wgt when you cut a GitHub Release.
   release:
     types: [published]
 
 permissions:
-  contents: write   # needed only for the release-upload step
+  contents: write
 
 jobs:
   build-tizen:
@@ -35,16 +27,10 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        # Falls back to `npm install` if the repo has no package-lock.json.
         run: npm ci || npm install
 
       - name: Build web bundle and package Tizen WGT
-        # `package:tizen` runs the build first, then package-tizen.mjs.
-        # We do NOT set NUVIO_REQUIRE_LOCAL_PROPERTIES, so no local.properties
-        # is required; the bundled dist/nuvio.env.js is used.
-        # Custom app/package IDs so this installs as a SEPARATE app ("NuvioTVFix")
-        # and never collides with the existing NuvioTV001 author certificate.
-        run: TIZEN_PACKAGE_ID=NuvioTVFix TIZEN_APP_ID=NuvioTVFix.NuvioTV npm run package:tizen
+        run: npm run package:tizen
 
       - name: Locate the generated .wgt
         id: wgt
@@ -63,8 +49,6 @@ jobs:
           retention-days: 30
 
       - name: Attach .wgt to the Release
-        # Only runs for release events, so the Installer's
-        # "download latest release asset" flow picks it up automatically.
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
