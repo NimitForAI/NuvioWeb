@@ -1706,10 +1706,18 @@ function formatSubtitleTrackDisplay(track = {}, index = 0) {
     (detail) => !isSubtitleLanguageOnlyDetail(detail, languageLabel, languageKey)
   );
   const rawLabel = getMeaningfulTrackLabel(track);
+  // Embedded (internal) tracks whose language AVPlay could not resolve used to
+  // render the literal word "Unknown". Match Stremio: fall back to the track's
+  // own name, else a neutral "Embedded" label, and never surface "Unknown" for
+  // a file-internal track. Addon/manifest tracks keep their "Subtitle N"
+  // fallback so their behaviour is unchanged.
+  const fallbackLabel = isEmbeddedSubtitleTrack(track)
+    ? embeddedSubtitleFallbackLabel(track, index)
+    : subtitleLabel(index);
   const label =
     languageKey !== SUBTITLE_LANGUAGE_UNKNOWN_KEY && languageLabel
       ? languageLabel
-      : rawLabel || subtitleLabel(index);
+      : rawLabel || fallbackLabel;
 
   return {
     label,
@@ -1718,6 +1726,34 @@ function formatSubtitleTrackDisplay(track = {}, index = 0) {
     languageKey,
     languageLabel
   };
+}
+
+// True for tracks that live inside the media file (Tizen AVPlay TEXT tracks and
+// the webOS embedded tracks), as opposed to addon/manifest subtitles. Embedded
+// tracks carry an embedded/AVPlay/native track index; addon subtitles carry a
+// url / addonName instead.
+function isEmbeddedSubtitleTrack(track = {}) {
+  if (track?.url || track?.addonName) {
+    return false;
+  }
+  return (
+    Number.isFinite(Number(track?.embeddedTrackIndex)) ||
+    Number.isFinite(Number(track?.avplayTrackIndex)) ||
+    Number.isFinite(Number(track?.nativeTrackIndex))
+  );
+}
+
+// Stremio groups internal subtitle tracks under a single "Embedded" heading
+// rather than forcing a language. When we have no language and no meaningful
+// track name, present a stable "Embedded" label (numbered when there is more
+// than one) so the entry is selectable and readable instead of "Unknown".
+function embeddedSubtitleFallbackLabel(track = {}, index = 0) {
+  const base = t("subtitle_embedded", {}, "Embedded");
+  const embeddedIndex = Number(
+    track?.embeddedTrackIndex ?? track?.avplayTrackIndex ?? track?.nativeTrackIndex ?? index
+  );
+  const ordinal = Number.isFinite(embeddedIndex) ? embeddedIndex : index;
+  return ordinal > 0 ? `${base} ${ordinal + 1}` : base;
 }
 
 function isSubtitleLanguageOnlyDetail(value, languageLabel = "", languageKey = "") {
