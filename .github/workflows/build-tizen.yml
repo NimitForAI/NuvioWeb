@@ -42,7 +42,9 @@ jobs:
         # `package:tizen` runs the build first, then package-tizen.mjs.
         # We do NOT set NUVIO_REQUIRE_LOCAL_PROPERTIES, so no local.properties
         # is required; the bundled dist/nuvio.env.js is used.
-        run: npm run package:tizen
+        # Custom app/package IDs so this installs as a SEPARATE app ("NuvioTVFix")
+        # and never collides with the existing NuvioTV001 author certificate.
+        run: TIZEN_PACKAGE_ID=NuvioTVFix TIZEN_APP_ID=NuvioTVFix.NuvioTV npm run package:tizen
 
       - name: Locate the generated .wgt
         id: wgt
